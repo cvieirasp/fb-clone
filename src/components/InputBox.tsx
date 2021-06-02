@@ -1,14 +1,84 @@
-import { MouseEvent } from 'react'
+import { ChangeEvent, MouseEvent, useRef, useState } from 'react'
 import { useSession } from 'next-auth/client'
 import Image from 'next/image'
 import { EmojiHappyIcon } from '@heroicons/react/outline'
 import { CameraIcon, VideoCameraIcon } from '@heroicons/react/solid'
+import { db, storage } from '../../firebase'
+import firebase from 'firebase'
 
 function InputBox() {
   const [session] = useSession()
+  const [imageToPost, setImageToPost] = useState('')
+
+  const inputRef = useRef<HTMLInputElement>(null)
+  const filePickerRef = useRef<HTMLInputElement>(null)
 
   const sendPost = (e: MouseEvent) => {
     e.preventDefault()
+
+    if (!inputRef.current?.value) return
+
+    db.collection('posts')
+      .add({
+        message: inputRef.current.value,
+        name: session?.user?.name,
+        email: session?.user?.email,
+        image: session?.user?.image,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      })
+      .then((doc) => {
+        if (imageToPost) {
+          const uploadTaks = storage
+            .ref(`posts/${doc.id}`)
+            .putString(imageToPost, 'data_url')
+
+          removeImage()
+
+          uploadTaks.on(
+            'state_change',
+            null,
+            (err) => console.error(err),
+            () => {
+              storage
+                .ref('posts')
+                .child(doc.id)
+                .getDownloadURL()
+                .then((url) => {
+                  db.collection('posts').doc(doc.id).set(
+                    {
+                      postImage: url
+                    },
+                    { merge: true }
+                  )
+                })
+                .catch((err) => {
+                  console.error(err)
+                })
+            }
+          )
+        }
+      })
+      .catch((err) => {
+        console.error(err)
+      })
+
+    inputRef.current.value = ''
+  }
+
+  const addImageToPost = (e: ChangeEvent<HTMLInputElement>) => {
+    const reader = new FileReader()
+    if (e.target.files?.length) {
+      reader.readAsDataURL(e.target.files[0])
+    }
+    reader.onload = (readerEvent) => {
+      const result = `${readerEvent.target?.result || ''}`
+      setImageToPost(result)
+    }
+  }
+
+  const removeImage = () => {
+    setImageToPost('')
+    if (filePickerRef.current) filePickerRef.current.value = ''
   }
 
   return (
@@ -25,12 +95,27 @@ function InputBox() {
           <input
             className="rounded-full h-22 bg-gray-100 flex-grow px-5 py-2 focus:outline-none"
             type="text"
+            ref={inputRef}
             placeholder={`O que você está pensando, ${session?.user?.name}`}
           />
           <button hidden type="submit" onClick={sendPost}>
             Enviar
           </button>
         </form>
+
+        {imageToPost && (
+          <div
+            className="flex flex-col filter hover:brightness-110 transition duration-150 transform hover:scale-105 cursor-pointer"
+            onClick={removeImage}
+          >
+            <img
+              className="h-10 object-contain"
+              src={imageToPost}
+              alt="Imagem Selecionada"
+            />
+            <p className="text-xs text-red-500 text-center">Remover</p>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-evenly p-3 border-t">
@@ -38,9 +123,18 @@ function InputBox() {
           <VideoCameraIcon className="h-7 text-red-500" />
           <p className="text-xs sm:text-sm xl:text-base">Vídeo ao Vivo</p>
         </div>
-        <div className="inputIcon">
+        <div
+          className="inputIcon"
+          onClick={() => filePickerRef.current?.click()}
+        >
           <CameraIcon className="h-7 text-green-400" />
           <p className="text-xs sm:text-sm xl:text-base">Foto/Vídeo</p>
+          <input
+            hidden
+            type="file"
+            ref={filePickerRef}
+            onChange={addImageToPost}
+          />
         </div>
         <div className="inputIcon">
           <EmojiHappyIcon className="h-7 text-yellow-300" />
