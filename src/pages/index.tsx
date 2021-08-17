@@ -1,16 +1,21 @@
 import { getSession, GetSessionOptions } from 'next-auth/client'
 import { Session } from 'next-auth'
 import Head from 'next/head'
+
 import Login from '../components/Login'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import Feed from '../components/Feed'
+import Widgets from '../components/Widgets'
+import { PostType } from '../types/post'
+import { getPosts } from '../lib/db'
 
 interface Props {
   session: Session
+  posts: PostType[]
 }
 
-export default function Home({ session }: Props) {
+export default function Home({ session, posts }: Props) {
   if (!session) return <Login />
 
   return (
@@ -23,7 +28,8 @@ export default function Home({ session }: Props) {
 
       <main className="flex">
         <Sidebar />
-        <Feed />
+        <Feed posts={posts} />
+        <Widgets />
       </main>
     </div>
   )
@@ -31,10 +37,12 @@ export default function Home({ session }: Props) {
 
 export async function getServerSideProps(context: GetSessionOptions) {
   const session = await getSession(context)
+  const docs = await getPosts()
 
   return {
     props: {
-      session
+      session,
+      posts: docs
     }
   }
 }

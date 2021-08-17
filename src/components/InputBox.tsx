@@ -3,8 +3,7 @@ import { useSession } from 'next-auth/client'
 import Image from 'next/image'
 import { EmojiHappyIcon } from '@heroicons/react/outline'
 import { CameraIcon, VideoCameraIcon } from '@heroicons/react/solid'
-import { db, storage } from '../../firebase'
-import firebase from 'firebase'
+import { addPost } from '../lib/db'
 
 function InputBox() {
   const [session] = useSession()
@@ -18,7 +17,15 @@ function InputBox() {
 
     if (!inputRef.current?.value) return
 
-    db.collection('posts')
+    addPost({
+      id: '',
+      message: inputRef.current.value,
+      name: session?.user?.name || '',
+      email: session?.user?.email || '',
+      image: session?.user?.image || '',
+      postImage: imageToPost
+    })
+    /*db.collection('posts')
       .add({
         message: inputRef.current.value,
         name: session?.user?.name,
@@ -60,8 +67,9 @@ function InputBox() {
       })
       .catch((err) => {
         console.error(err)
-      })
+      })*/
 
+    removeImage()
     inputRef.current.value = ''
   }
 
